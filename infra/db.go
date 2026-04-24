@@ -31,7 +31,7 @@ func InitDB() *sql.DB {
 	schema := `
 		CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT);
 		CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, paid_by INT REFERENCES users(id), amount NUMERIC);
-		CREAET TABLE IF NOT EXISTS participants (expense_id INT REFERENCES expenses(id), user_id INT REFERENCES users(id));
+		CREATE TABLE IF NOT EXISTS participants (expense_id INT REFERENCES expenses(id), user_id INT REFERENCES users(id));
 	`
 
 	_, err = db.Exec(schema)
