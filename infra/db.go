@@ -28,6 +28,17 @@ func InitDB() *sql.DB {
 		log.Fatal("DB not reachable:", err)
 	}
 
+	schema := `
+		CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT);
+		CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, paid_by INT REFERENCES users(id), amount NUMERIC);
+		CREAET TABLE IF NOT EXISTS participants (expense_id INT REFERENCES expenses(id), user_id INT REFERENCES users(id));
+	`
+
+	_, err = db.Exec(schema)
+	if err != nil {
+		log.Fatal("Schema error:", err)
+	}
+
 	fmt.Println("Connected to PostgresSQL")
 
 	return db
