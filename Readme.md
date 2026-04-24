@@ -1,45 +1,52 @@
 ```mermaid
 graph TD
     %% Define actors and external systems
+
     subgraph Clients
         U[End User / Developer]
-    }
+    end
 
-    subgraph "External World"
+    subgraph External_World
         GAPI[GitHub Public API]
-    }
+    end
 
-    subgraph "Go Application (Main Thread)"
+    subgraph Go_Application
         M[main.go]
 
-        subgraph "Layer 1: api/v1 (REST API Server)"
-            EH[User Handlers<br/>POST /users<br/>GET /activity]
-        }
+        subgraph API_Layer
+            EH[User Handlers - POST /users - GET /activity]
+        end
 
-        subgraph "Layer 2: business/v1"
-            BL[User & Activity Manager<br/>(Interface & Implementation)]
-        }
+        subgraph Business_Layer
+            BL[User & Activity Manager]
+        end
 
-        subgraph "Layer 3: entities/repositories"
-            RP[PostgreSQL Repository<br/>(Interface & Implementation)]
-        }
+        subgraph Repository_Layer
+            RP[PostgreSQL Repository]
+        end
 
-        subgraph "Storage"
+        subgraph Storage
             DB[(PostgreSQL Database)]
-        }
+        end
 
-        subgraph "Layer 4: jobs"
-            CR[Cron Scheduler<br/>(robfig/cron)]
-            GW[GitHub Worker<br/>(Fetches multiple users concurrently)]
-        }
+        subgraph Jobs
+            CR[Cron Scheduler]
+            GW[GitHub Worker]
+        end
 
-        subgraph "Layer 5: externals"
-            GC[GitHub Client<br/>(Handles HTTP, Rate Limits)]
-        }
-    }
+        subgraph Externals
+            GC[GitHub Client]
+        end
+    end
 
-    U -->|POST /users| EH
+    %% Flow
+    U --> EH
     EH --> BL
     BL --> RP
     RP --> DB
+
+    CR --> GW
+    GW --> BL
+    GW --> GC
+    GC --> GAPI
 ```
