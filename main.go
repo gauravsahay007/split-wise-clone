@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/gauravsahay007/split-wise-clone/api"
 	"github.com/gauravsahay007/split-wise-clone/business"
 	"github.com/gauravsahay007/split-wise-clone/infra"
@@ -29,5 +31,10 @@ func main() {
 		v1.POST("/expenses", h.ExpenseHandler)
 	}
 
-	r.Run(":8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	r.Run(":" + port)
 }

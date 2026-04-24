@@ -13,7 +13,7 @@ type Repo struct {
 func (r *Repo) SaveUser(name string) (models.User, error) {
 	var u models.User
 	query := "INSERT INTO users(name) VALUES($1) RETURNING id, name"
-	err := r.DB.QueryRow(query, name).Scan(&u)
+	err := r.DB.QueryRow(query, name).Scan(&u.ID, &u.Name)
 	return u, err
 }
 

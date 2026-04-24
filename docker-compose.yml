@@ -1,6 +1,18 @@
-version: "3.8"
-
 services:
+  app:
+    build: .
+    container_name: go_app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_USER: admin
+      DB_PASSWORD: admin
+      DB_NAME: expense_db
+      DB_PORT: 5432
+
   postgres:
     image: postgres:15
     container_name: expense_postgres
@@ -16,4 +28,3 @@ services:
 
 volumes:
   postgres_data:
-  
