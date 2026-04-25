@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		return
+	}
 
 	db := infra.InitDB()
 
@@ -39,5 +41,7 @@ func main() {
 		port = "8080"
 	}
 
-	r.Run(":" + port)
+	if err := r.Run(":" + port); err != nil {
+		panic("failed to start server: " + err.Error())
+	}
 }

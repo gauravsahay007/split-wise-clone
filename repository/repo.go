@@ -87,7 +87,12 @@ func (r *Repo) GetExpensesByGroup(groupID int) ([]models.Expense, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		if err := rows.Close(); err != nil {
+			return
+		}
+	}()
 
 	var expenses []models.Expense
 	for rows.Next() {
