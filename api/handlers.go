@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gauravsahay007/split-wise-clone/business"
 	"github.com/gauravsahay007/split-wise-clone/models"
@@ -45,4 +46,30 @@ func (h *Handler) ExpenseHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Expense added successfully"})
+}
+
+func (h *Handler) CreateGroupHandler(c *gin.Context) {
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	group, _ := h.Service.Repo.SaveGroup(req.Name)
+	c.JSON(200, group)
+}
+
+// BalancesHandler calculates the net settlements with simplification
+func (h *Handler) BalancesHandler(c *gin.Context) {
+	// Get group_id from URL: /api/groups/:id/balances
+	groupIDStr := c.Param("id")
+	groupID, _ := strconv.Atoi(groupIDStr)
+
+	balances, err := h.Service.GetBalances(groupID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, balances)
 }
