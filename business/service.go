@@ -1,16 +1,24 @@
 package business
 
 import (
+	"errors"
+
 	"github.com/gauravsahay007/split-wise-clone/models"
 	"github.com/gauravsahay007/split-wise-clone/repository"
+	"github.com/gauravsahay007/split-wise-clone/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
 	Repo *repository.Repo
 }
 
-func (s *Service) CreateUser(name string) (models.User, error) {
-	return s.Repo.SaveUser(name)
+func (s *Service) CreateUser(name string, password string) (models.User, error) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return models.User{}, err
+	}
+	return s.Repo.SaveUser(name, string(hashed)) //convert byte slice to string for DB storage
 }
 
 func (s *Service) CreateExpense(exp models.Expense) error {
@@ -85,4 +93,22 @@ func (s *Service) GetBalances(groupID int) ([]models.Balance, error) {
 
 func (s *Service) AddMemberToGroup(groupID int, userID int) error {
 	return s.Repo.AddUserToGroup(groupID, userID)
+}
+
+func (s *Service) Authenticate(id int, password string) (string, error) {
+	user, err := s.Repo.GetUserByID(id)
+	if err != nil {
+		return "", errors.New("user not found")
+	}
+
+	err = bcrypt.CompareHashAndPassword(
+		[]byte(user.Password),
+		[]byte(password),
+	)
+
+	if err != nil {
+		return "", errors.New("Invalid Credentials")
+	}
+
+	return utils.GenerateToken(user.ID)
 }
