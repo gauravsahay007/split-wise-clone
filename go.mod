@@ -1,6 +1,6 @@
 module github.com/gauravsahay007/split-wise-clone
 
-go 1.25.6
+go 1.22
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
