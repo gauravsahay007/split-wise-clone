@@ -34,35 +34,15 @@ func InitDB() *sql.DB {
 	db.SetConnMaxLifetime(time.Minute * 5) // How long a connection is reused before closing
 
 	schema := `
-		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY, 
-			name TEXT, 
-			password TEXT NOT NULL,
-			email TEXT UNIQUE,
-			profile_pic TEXT
-		);
-		CREATE TABLE IF NOT EXISTS groups (
-			id SERIAL PRIMARY KEY, 
-			name TEXT NOT NULL,
-			created_by INT REFERENCES users(id),
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
+		CREATE TABLE IF NOT EXISTS groups (id SERIAL PRIMARY KEY, name TEXT NOT NULL);
+		CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT, password TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS expenses (
 			id SERIAL PRIMARY KEY, 
-			group_id INT REFERENCES groups(id), 
+			group_id INT REFERENCES groups(id), -- Added this!
 			paid_by INT REFERENCES users(id), 
-			amount NUMERIC(15,2),
-			description TEXT,
-			category TEXT, 
-			receipt_image TEXT,
-			split_type TEXT DEFAULT 'equal', 
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			amount NUMERIC
 		);
-		CREATE TABLE IF NOT EXISTS participants (
-			expense_id INT REFERENCES expenses(id) ON DELETE CASCADE, 
-			user_id INT REFERENCES users(id),
-			share_amount NUMERIC(15,2) 
-		);
+		CREATE TABLE IF NOT EXISTS participants (expense_id INT REFERENCES expenses(id), user_id INT REFERENCES users(id));
 		CREATE TABLE IF NOT EXISTS group_members (
 			group_id INT REFERENCES groups(id),
 			user_id INT REFERENCES users(id),
