@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gauravsahay007/split-wise-clone/business"
 	"github.com/gauravsahay007/split-wise-clone/models"
@@ -16,49 +17,58 @@ type Handler struct {
 
 func (h *Handler) UserHandler(c *gin.Context) {
 	var req struct {
-		Name     string `json:"name" binding:"required"`
-		Password string `json:"password" binding:"required,min=6"`
+		Name       string `json:"name" binding:"required"`
+		Password   string `json:"password" binding:"required,min=6"`
+		Email      string `json:"email"`
+		ProfilePic string `json:"profile_pic"`
 	}
 
-	if err := c.ShouldBindBodyWithJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Name is required"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, err := h.Service.CreateUser(req.Name, req.Password)
+	user, err := h.Service.CreateUser(req.Name, req.Password, req.Email, req.ProfilePic)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusCreated, user)
 }
 
 // ExpenseHandler adds a new expense to a specific group
 func (h *Handler) ExpenseHandler(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context missing"})
+		return
+	}
+	currentUserID := val.(int)
 	var exp models.Expense
-
-	// ShouldBindJSON maps the "group_id", "paid_by", etc., from JSON to the struct
 	if err := c.ShouldBindJSON(&exp); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if exp.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Amount must be positive"})
+		return
+	}
+	if len(exp.UserIDs) == 0 && len(exp.Shares) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No participants provided"})
 		return
 	}
 
-	// Basic Validation: Ensure group and amount are provided
-	if exp.GroupID == 0 || exp.Amount <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "group_id and a positive amount are required"})
-		return
-	}
-
+	exp.PaidBy = currentUserID
 	if err := h.Service.CreateExpense(exp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save expense"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Expense added successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Expense added"})
 }
 
 func (h *Handler) CreateGroupHandler(c *gin.Context) {
+	userID := c.MustGet("current_user_id").(int)
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -66,8 +76,12 @@ func (h *Handler) CreateGroupHandler(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	group, _ := h.Service.Repo.SaveGroup(req.Name)
-	c.JSON(200, group)
+	group, err := h.Service.CreateGroup(req.Name, userID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create group"})
+		return
+	}
+	c.JSON(http.StatusCreated, group)
 }
 
 // BalancesHandler calculates the net settlements with simplification
@@ -111,31 +125,28 @@ func (h *Handler) AddMemberHandler(c *gin.Context) {
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
+		authHeader := c.GetHeader("Authorization")
 
-		if tokenString == "" {
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Missing authorization header",
+				"error": "Unauthorized: Missing or invalid token format",
 			})
-
 			c.Abort()
 			return
 		}
 
-		if len(tokenString) > 7 && tokenString[:7] == "Bearer" {
-			tokenString = tokenString[7:]
-		}
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		userID, err := utils.ValidateToken(tokenString)
-
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
+				"error": "Unauthorized: Invalid or expired token",
 			})
 			c.Abort()
 			return
 		}
 
+		// 4. Set the ID in context for other handlers to use
 		c.Set("current_user_id", userID)
 
 		c.Next()
@@ -166,4 +177,25 @@ func (h *Handler) LoginHandler(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"token": token,
 	})
+}
+
+func (h *Handler) UserSummaryHandler(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User context missing"})
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error: Invalid user ID format"})
+		return
+	}
+
+	summary, err := h.Service.GetUserOverallSummary(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not calculate user summary: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
 }
