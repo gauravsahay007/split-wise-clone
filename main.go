@@ -27,13 +27,16 @@ func main() {
 	//Initialise gin router
 	r := gin.Default()
 
-	v1 := r.Group("/api")
+	r.POST("/api/users", h.UserHandler)
+	r.POST("/api/login", h.LoginHandler)
+
+	authorized := r.Group("/api")
+	authorized.Use(api.AuthMiddleware())
 	{
-		v1.POST("/users", h.UserHandler)
-		v1.POST("/expenses", h.ExpenseHandler)
-		v1.POST("/groups", h.CreateGroupHandler)
-		v1.POST("/groups/:id/members", h.AddMemberHandler)
-		v1.GET("/groups/:id/balances", h.BalancesHandler)
+		authorized.POST("/groups", h.CreateGroupHandler)
+		authorized.POST("/groups/:id/members", h.AddMemberHandler)
+		authorized.POST("/expenses", h.ExpenseHandler)
+		authorized.GET("/groups/:id/balances", h.BalancesHandler)
 	}
 
 	port := os.Getenv("PORT")

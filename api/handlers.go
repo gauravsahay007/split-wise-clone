@@ -6,6 +6,7 @@ import (
 
 	"github.com/gauravsahay007/split-wise-clone/business"
 	"github.com/gauravsahay007/split-wise-clone/models"
+	"github.com/gauravsahay007/split-wise-clone/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +16,8 @@ type Handler struct {
 
 func (h *Handler) UserHandler(c *gin.Context) {
 	var req struct {
-		Name string `json:"name" binding:"required"`
+		Name     string `json:"name" binding:"required"`
+		Password string `json:"password" binding:"required,min=6"`
 	}
 
 	if err := c.ShouldBindBodyWithJSON(&req); err != nil {
@@ -23,7 +25,7 @@ func (h *Handler) UserHandler(c *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.CreateUser(req.Name)
+	user, err := h.Service.CreateUser(req.Name, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -105,4 +107,63 @@ func (h *Handler) AddMemberHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
+}
+
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := c.GetHeader("Authorization")
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Missing authorization header",
+			})
+
+			c.Abort()
+			return
+		}
+
+		if len(tokenString) > 7 && tokenString[:7] == "Bearer" {
+			tokenString = tokenString[7:]
+		}
+
+		userID, err := utils.ValidateToken(tokenString)
+
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Unauthorized",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("current_user_id", userID)
+
+		c.Next()
+	}
+}
+
+func (h *Handler) LoginHandler(c *gin.Context) {
+	var req struct {
+		ID       int    `json:"id" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"error": "ID and Passwor required",
+		})
+		return
+	}
+
+	token, err := h.Service.Authenticate(req.ID, req.Password)
+	if err != nil {
+		c.JSON(401, gin.H{
+			"error": "Unauthorized: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"token": token,
+	})
 }

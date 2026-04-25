@@ -11,10 +11,20 @@ type Repo struct {
 	DB *sql.DB
 }
 
-func (r *Repo) SaveUser(name string) (models.User, error) {
+func (r *Repo) SaveUser(name string, hashedPassword string) (models.User, error) {
 	var u models.User
-	query := "INSERT INTO users(name) VALUES($1) RETURNING id, name"
-	err := r.DB.QueryRow(query, name).Scan(&u.ID, &u.Name)
+	query := "INSERT INTO users(name, password) VALUES($1, $2) RETURNING id, name"
+	err := r.DB.QueryRow(query, name, hashedPassword).Scan(&u.ID, &u.Name)
+	return u, err
+}
+
+func (r *Repo) GetUserByID(id int) (models.User, error) {
+	var u models.User
+	err := r.DB.QueryRow("SELECT id, name, password FROM users WHERE id = $1", id).Scan(
+		&u.ID,
+		&u.Name,
+		&u.Password,
+	)
 	return u, err
 }
 
@@ -26,6 +36,7 @@ func (r *Repo) SaveExpense(exp models.Expense) error {
 	}
 
 	defer func() {
+		println(err)
 		if err != nil {
 			_ = tx.Rollback()
 		}
