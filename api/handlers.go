@@ -32,11 +32,19 @@ func (h *Handler) UserHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// ExpenseHandler adds a new expense to a specific group
 func (h *Handler) ExpenseHandler(c *gin.Context) {
 	var exp models.Expense
 
-	if err := c.ShouldBindBodyWithJSON(&exp); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// ShouldBindJSON maps the "group_id", "paid_by", etc., from JSON to the struct
+	if err := c.ShouldBindJSON(&exp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload: " + err.Error()})
+		return
+	}
+
+	// Basic Validation: Ensure group and amount are provided
+	if exp.GroupID == 0 || exp.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "group_id and a positive amount are required"})
 		return
 	}
 
@@ -72,4 +80,29 @@ func (h *Handler) BalancesHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(200, balances)
+}
+
+func (h *Handler) AddMemberHandler(c *gin.Context) {
+	// Get group_id from URL /api/groups/:id/members
+	groupID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group ID"})
+		return
+	}
+
+	var req struct {
+		UserID int `json:"user_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	if err := h.Service.AddMemberToGroup(groupID, req.UserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not add user to group"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
 }

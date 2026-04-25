@@ -82,3 +82,7 @@ func (s *Service) GetBalances(groupID int) ([]models.Balance, error) {
 	}
 	return s.simplifyDebts(netBalances), nil
 }
+
+func (s *Service) AddMemberToGroup(groupID int, userID int) error {
+	return s.Repo.AddUserToGroup(groupID, userID)
+}

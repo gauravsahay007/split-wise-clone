@@ -20,8 +20,8 @@ func (r *Repo) SaveUser(name string) (models.User, error) {
 
 func (r *Repo) SaveExpense(exp models.Expense) error {
 	var expID int
-	query := "INSERT INTO expenses(paid_by, amount) VALUES($1, $2) RETURNING id"
-	err := r.DB.QueryRow(query, exp.PaidBy, exp.Amount).Scan(&expID)
+	query := "INSERT INTO expenses(group_id, paid_by, amount) VALUES($1, $2, $3) RETURNING id"
+	err := r.DB.QueryRow(query, exp.GroupID, exp.PaidBy, exp.Amount).Scan(&expID)
 	if err != nil {
 		return err
 	}
@@ -29,9 +29,12 @@ func (r *Repo) SaveExpense(exp models.Expense) error {
 	for _, uid := range exp.UserIDs {
 		query := "INSERT INTO participants(expense_id, user_id) VALUES($1, $2)"
 		_, err = r.DB.Exec(query, expID, uid)
+		if err != nil {
+			return err
+		}
 	}
 
-	return err
+	return nil
 }
 
 // // GetAllExpenses returns all expense records with participant IDs
@@ -100,4 +103,12 @@ func (r *Repo) GetExpensesByGroup(groupID int) ([]models.Expense, error) {
 		expenses = append(expenses, e)
 	}
 	return expenses, nil
+}
+
+func (r *Repo) AddUserToGroup(groupID int, userID int) error {
+	_, err := r.DB.Exec(
+		"INSERT INTO group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+		groupID, userID,
+	)
+	return err
 }
