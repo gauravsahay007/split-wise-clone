@@ -39,8 +39,9 @@ func (r *Repo) SaveExpense(exp models.Expense) error {
 		return err
 	}
 
-	// Defer a rollback in case anything fails
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	// 2. Insert Expense
 	var expID int
@@ -117,7 +118,9 @@ func (r *Repo) SaveGroup(name string, creatorID int) (models.Group, error) {
 	if err != nil {
 		return models.Group{}, err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	var g models.Group
 
