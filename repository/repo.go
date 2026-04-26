@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/gauravsahay007/split-wise-clone/models"
 	"github.com/lib/pq"
@@ -11,10 +12,14 @@ type Repo struct {
 	DB *sql.DB
 }
 
-func (r *Repo) SaveUser(name string, hashedPassword string) (models.User, error) {
+func (r *Repo) SaveUser(name, password, email, profilePic string) (models.User, error) {
 	var u models.User
-	query := "INSERT INTO users(name, password) VALUES($1, $2) RETURNING id, name"
-	err := r.DB.QueryRow(query, name, hashedPassword).Scan(&u.ID, &u.Name)
+	query := `INSERT INTO users (name, password, email, profile_pic) 
+	          VALUES ($1, $2, $3, $4) RETURNING id, name, email, profile_pic`
+
+	err := r.DB.QueryRow(query, name, password, email, profilePic).Scan(
+		&u.ID, &u.Name, &u.Email, &u.ProfilePic,
+	)
 	return u, err
 }
 
@@ -29,36 +34,51 @@ func (r *Repo) GetUserByID(id int) (models.User, error) {
 }
 
 func (r *Repo) SaveExpense(exp models.Expense) error {
-	//Start transaction
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		println(err)
-		if err != nil {
-			_ = tx.Rollback()
-		}
+		_ = tx.Rollback()
 	}()
 
+	// 2. Insert Expense
 	var expID int
-	query := "INSERT INTO expenses(group_id, paid_by, amount) VALUES($1, $2, $3) RETURNING id"
-	err = tx.QueryRow(query, exp.GroupID, exp.PaidBy, exp.Amount).Scan(&expID)
+	query := `INSERT INTO expenses(group_id, paid_by, amount, description, category, receipt_image, split_type) 
+	          VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+
+	err = tx.QueryRow(query, exp.GroupID, exp.PaidBy, exp.Amount, exp.Description,
+		exp.Category, exp.ReceiptImage, exp.SplitType).Scan(&expID)
 	if err != nil {
 		return err
 	}
 
-	for _, uid := range exp.UserIDs {
-		query := "INSERT INTO participants(expense_id, user_id) VALUES($1, $2)"
-		_, err = tx.Exec(query, expID, uid)
-		if err != nil {
-			return err
+	// 3. Insert Participants
+	if exp.SplitType == "manual" {
+		for _, share := range exp.Shares {
+			_, err = tx.Exec("INSERT INTO participants(expense_id, user_id, share_amount) VALUES($1, $2, $3)",
+				expID, share.UserID, share.Amount)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		if len(exp.UserIDs) == 0 {
+			return errors.New("no participants")
+		}
+		shareAmt := exp.Amount / float64(len(exp.UserIDs))
+		for _, uid := range exp.UserIDs {
+			_, err = tx.Exec("INSERT INTO participants(expense_id, user_id, share_amount) VALUES($1, $2, $3)",
+				expID, uid, shareAmt)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	err = tx.Commit()
-	return nil
+	// 4. Commit everything if all steps succeeded
+	return tx.Commit()
 }
 
 // // GetAllExpenses returns all expense records with participant IDs
@@ -93,10 +113,35 @@ func (r *Repo) SaveExpense(exp models.Expense) error {
 // 	return expenses, nil
 // }
 
-func (r *Repo) SaveGroup(name string) (models.Group, error) {
+func (r *Repo) SaveGroup(name string, creatorID int) (models.Group, error) {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return models.Group{}, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
 	var g models.Group
-	err := r.DB.QueryRow("INSERT INTO groups(name) VALUES($1) RETURNING id, name", name).Scan(&g.ID, &g.Name)
-	return g, err
+
+	query := "INSERT INTO groups(name, created_by) VALUES($1, $2) RETURNING id, name"
+	err = tx.QueryRow(query, name, creatorID).Scan(&g.ID, &g.Name)
+	if err != nil {
+		return models.Group{}, err
+	}
+
+	memberQuery := "INSERT INTO group_members(group_id, user_id) VALUES($1, $2)"
+	_, err = tx.Exec(memberQuery, g.ID, creatorID)
+	if err != nil {
+		return models.Group{}, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return models.Group{}, err
+	}
+
+	return g, nil
 }
 
 func (r *Repo) GetExpensesByGroup(groupID int) ([]models.Expense, error) {
@@ -140,4 +185,20 @@ func (r *Repo) AddUserToGroup(groupID int, userID int) error {
 		groupID, userID,
 	)
 	return err
+}
+
+// GetTotalPaidByUser calculates the sum of all expenses paid by this user
+func (r *Repo) GetTotalPaidByUser(userID int) (float64, error) {
+	var total float64
+	query := "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE paid_by = $1"
+	err := r.DB.QueryRow(query, userID).Scan(&total)
+	return total, err
+}
+
+// GetTotalOwedByUser calculates the sum of all shares assigned to this user
+func (r *Repo) GetTotalOwedByUser(userID int) (float64, error) {
+	var total float64
+	query := "SELECT COALESCE(SUM(share_amount), 0) FROM participants WHERE user_id = $1"
+	err := r.DB.QueryRow(query, userID).Scan(&total)
+	return total, err
 }
