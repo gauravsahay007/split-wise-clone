@@ -28,8 +28,8 @@ jobs:
         run: |
           mkdir public
           cp docs/swagger.json public/
-          cp index.html public/
-          
+          cp docs/index.html public/
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
