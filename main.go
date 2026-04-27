@@ -3,10 +3,11 @@ package main
 import (
 	"os"
 
-	"github.com/gauravsahay007/split-wise-clone/api"
+	api "github.com/gauravsahay007/split-wise-clone/api/handler"
 	"github.com/gauravsahay007/split-wise-clone/business"
 	_ "github.com/gauravsahay007/split-wise-clone/docs"
 	"github.com/gauravsahay007/split-wise-clone/infra"
+	"github.com/gauravsahay007/split-wise-clone/middleware"
 	"github.com/gauravsahay007/split-wise-clone/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -35,7 +36,7 @@ func main() {
 	r.POST("/api/login", h.LoginHandler)
 
 	authorized := r.Group("/api")
-	authorized.Use(api.AuthMiddleware())
+	authorized.Use(middleware.AuthMiddleware())
 	{
 		authorized.POST("/groups", h.CreateGroupHandler)
 		authorized.POST("/groups/:id/members", h.AddMemberHandler)
