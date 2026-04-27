@@ -5,10 +5,13 @@ import (
 
 	"github.com/gauravsahay007/split-wise-clone/api"
 	"github.com/gauravsahay007/split-wise-clone/business"
+	_ "github.com/gauravsahay007/split-wise-clone/docs"
 	"github.com/gauravsahay007/split-wise-clone/infra"
 	"github.com/gauravsahay007/split-wise-clone/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -27,6 +30,7 @@ func main() {
 	//Initialise gin router
 	r := gin.Default()
 
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.POST("/api/users", h.UserHandler)
 	r.POST("/api/login", h.LoginHandler)
 
