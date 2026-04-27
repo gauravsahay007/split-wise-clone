@@ -37,8 +37,8 @@ func InitDB() *sql.DB {
 		CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY, 
 			name TEXT, 
-			password TEXT NOT NULL,
-			email TEXT UNIQUE,
+			password TEXT,
+			email TEXT UNIQUE NOT NULL,
 			profile_pic TEXT
 		);
 		CREATE TABLE IF NOT EXISTS groups (
@@ -67,6 +67,15 @@ func InitDB() *sql.DB {
 			group_id INT REFERENCES groups(id),
 			user_id INT REFERENCES users(id),
 			PRIMARY KEY (group_id, user_id)
+		);
+		CREATE TABLE IF NOT EXISTS auth_identities (
+			id SERIAL PRIMARY KEY,
+			user_id INT REFERENCES users(id) ON DELETE CASCADE,
+			provider TEXT NOT NULL, 
+			provider_id TEXT NOT NULL,
+			created_id TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+			UNIQUE(provider, provider_id)
 		);
 	`
 

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	api "github.com/gauravsahay007/split-wise-clone/api/handler"
+	"github.com/gauravsahay007/split-wise-clone/auth"
 	"github.com/gauravsahay007/split-wise-clone/business"
 	_ "github.com/gauravsahay007/split-wise-clone/docs"
 	"github.com/gauravsahay007/split-wise-clone/infra"
@@ -20,6 +21,8 @@ func main() {
 		return
 	}
 
+	auth.LoadGoogleAuthEnv(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"))
+
 	db := infra.InitDB()
 
 	repo := &repository.Repo{DB: db}
@@ -31,9 +34,11 @@ func main() {
 	//Initialise gin router
 	r := gin.Default()
 
+	r.GET("/auth/google", h.GoogleLoginHandler)
+	r.GET("/auth/google/callback", h.GenerateTokenFromGoogle)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	r.POST("/api/users", h.UserHandler)
-	r.POST("/api/login", h.LoginHandler)
+	r.POST("/auth/signup", h.UserHandler)
+	r.POST("/auth/login", h.LoginHandler)
 
 	authorized := r.Group("/api")
 	authorized.Use(middleware.AuthMiddleware())
