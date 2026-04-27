@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: write   # 🔥 REQUIRED
+  contents: write
 
 jobs:
   build-and-deploy:
