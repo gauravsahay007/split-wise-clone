@@ -12,7 +12,7 @@ type Repo struct {
 	DB *sql.DB
 }
 
-func (r *Repo) SaveUser(name, password, email, profilePic string) (models.User, error) {
+func (r *Repo) SaveUser(name string, password *string, email string, profilePic string) (models.User, error) {
 	var u models.User
 	query := `INSERT INTO users (name, password, email, profile_pic) 
 	          VALUES ($1, $2, $3, $4) RETURNING id, name, email, profile_pic`

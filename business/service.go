@@ -1,12 +1,17 @@
 package business
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/gauravsahay007/split-wise-clone/auth"
 	"github.com/gauravsahay007/split-wise-clone/models"
 	"github.com/gauravsahay007/split-wise-clone/repository"
 	"github.com/gauravsahay007/split-wise-clone/utils"
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,7 +27,8 @@ func (s *Service) CreateUser(name string, password string, email string, profile
 	if profilePic == "" {
 		profilePic = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png"
 	}
-	return s.Repo.SaveUser(name, string(hashed), email, profilePic) //convert byte slice to string for DB storage
+	hashedStr := string(hashed)
+	return s.Repo.SaveUser(name, &hashedStr, email, profilePic) //convert byte slice to string for DB storage
 }
 
 func (s *Service) CreateGroup(name string, creatorID int) (models.Group, error) {
@@ -156,4 +162,92 @@ func (s *Service) GetUserOverallSummary(userID int) (map[string]float64, error) 
 		"total_you_owe":     owed,
 		"net_balance":       paid - owed,
 	}, nil
+}
+
+type GoogleUserInterface struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Picture       string `json:"picture"`
+}
+
+func (s *Service) GoogleCallback(code string) (map[string]interface{}, error) {
+	token, err := auth.GoogleConfig().Exchange(context.Background(), code)
+	if err != nil {
+		return nil, err
+	}
+
+	client := auth.GoogleConfig().Client(context.Background(), token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("failed to fetch user info")
+	}
+
+	var googleUser GoogleUserInterface
+	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
+		return nil, err
+	}
+
+	if !googleUser.VerifiedEmail {
+		return nil, errors.New("Email not verified by Google")
+	}
+
+	googleID := googleUser.ID
+	email := googleUser.Email
+	name := googleUser.Name
+	picture := googleUser.Picture
+
+	user, err := s.Repo.GetUserByProvider("google", googleID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user != nil {
+		token, err := utils.GenerateToken(user.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		return gin.H{"token": token}, nil
+	}
+
+	user, err = s.Repo.GetUserByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+
+	if user != nil {
+		err = s.Repo.AddAuthIdentity(user.ID, "google", googleID)
+		if err != nil {
+			return nil, err
+		}
+		token, err := utils.GenerateToken(user.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		return gin.H{"token": token}, nil
+	}
+
+	newUser, err := s.Repo.SaveUser(name, nil, email, picture)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.Repo.AddAuthIdentity(newUser.ID, "google", googleID)
+	if err != nil {
+		return nil, err
+	}
+
+	newToken, err := utils.GenerateToken(newUser.ID)
+	if err != nil {
+		return nil, err
+	}
+	return gin.H{"token": newToken}, nil
 }
