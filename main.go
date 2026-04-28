@@ -6,21 +6,17 @@ import (
 	api "github.com/gauravsahay007/split-wise-clone/api/handler"
 	"github.com/gauravsahay007/split-wise-clone/auth"
 	"github.com/gauravsahay007/split-wise-clone/business"
+	_ "github.com/gauravsahay007/split-wise-clone/config"
 	_ "github.com/gauravsahay007/split-wise-clone/docs"
 	"github.com/gauravsahay007/split-wise-clone/infra"
 	"github.com/gauravsahay007/split-wise-clone/middleware"
 	"github.com/gauravsahay007/split-wise-clone/repository"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		return
-	}
-
 	auth.LoadGoogleAuthEnv(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"))
 	auth.LoadGithubAuthEnv(os.Getenv("GITHUB_CLIENT_ID"), os.Getenv("GITHUB_CLIENT_SECRET"))
 
