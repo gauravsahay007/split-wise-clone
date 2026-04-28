@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gauravsahay007/split-wise-clone/auth"
 	"github.com/gauravsahay007/split-wise-clone/models"
@@ -164,90 +165,155 @@ func (s *Service) GetUserOverallSummary(userID int) (map[string]float64, error) 
 	}, nil
 }
 
-type GoogleUserInterface struct {
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	Name          string `json:"name"`
-	VerifiedEmail bool   `json:"verified_email"`
-	Picture       string `json:"picture"`
-}
-
-func (s *Service) GoogleCallback(code string) (map[string]interface{}, error) {
-	token, err := auth.GoogleConfig().Exchange(context.Background(), code)
-	if err != nil {
-		return nil, err
-	}
-
-	client := auth.GoogleConfig().Client(context.Background(), token)
+func fetchGoogleUser(client *http.Client) (*auth.OAuthUser, error) {
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("failed to fetch user info")
-	}
-
-	var googleUser GoogleUserInterface
-	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
+	var u auth.GoogleUser
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return nil, err
 	}
 
-	if !googleUser.VerifiedEmail {
-		return nil, errors.New("Email not verified by Google")
+	if !u.VerifiedEmail {
+		return nil, errors.New("email not verified")
 	}
 
-	googleID := googleUser.ID
-	email := googleUser.Email
-	name := googleUser.Name
-	picture := googleUser.Picture
+	return &auth.OAuthUser{
+		Provider:   string(auth.Google),
+		ProviderID: u.ID,
+		Email:      u.Email,
+		Name:       u.Name,
+		Picture:    u.Picture,
+	}, nil
+}
 
-	user, err := s.Repo.GetUserByProvider("google", googleID)
+func fetchGithubEmail(client *http.Client) (string, error) {
+	resp, err := client.Get("https://api.github.com/user/emails")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+
+	_ = json.NewDecoder(resp.Body).Decode(&emails)
+
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email, nil
+		}
+	}
+
+	return "", errors.New("no verified email found")
+}
+
+func fetchGithubUser(client *http.Client) (*auth.OAuthUser, error) {
+	resp, err := client.Get("https://api.github.com/user")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var u auth.GithubUser
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+		return nil, err
+	}
+
+	email, _ := fetchGithubEmail(client)
+
+	if email == "" && u.Email != "" {
+		email = u.Email
+	}
+
+	// fallback name
+	name := u.Name
+	if name == "" {
+		name = u.Name
+	}
+
+	return &auth.OAuthUser{
+		Provider:   string(auth.Github),
+		ProviderID: strconv.Itoa(u.ID),
+		Email:      email,
+		Name:       name,
+		Picture:    u.AvatarURL,
+	}, nil
+}
+
+func (s *Service) OAuthCallback(code string, provider auth.OAuthProvider) (map[string]interface{}, error) {
+
+	config := auth.GetOAuthConfig(provider)
+	if config == nil {
+		return nil, errors.New("unsupported provider")
+	}
+
+	token, err := config.Exchange(context.Background(), code)
+	if err != nil {
+		return nil, err
+	}
+
+	client := config.Client(context.Background(), token)
+
+	var oauthUser *auth.OAuthUser
+
+	switch provider {
+	case auth.Google:
+		oauthUser, err = fetchGoogleUser(client)
+
+	case auth.Github:
+		oauthUser, err = fetchGithubUser(client)
+
+	default:
+		return nil, errors.New("provider not implemented")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.Repo.GetUserByProvider(oauthUser.Provider, oauthUser.ProviderID)
 	if err != nil {
 		return nil, err
 	}
 
 	if user != nil {
-		token, err := utils.GenerateToken(user.ID)
-		if err != nil {
-			return nil, err
-		}
-
+		token, _ := utils.GenerateToken(user.ID)
 		return gin.H{"token": token}, nil
 	}
 
-	user, err = s.Repo.GetUserByEmail(email)
-	if err != nil {
-		return nil, err
-	}
-
-	if user != nil {
-		err = s.Repo.AddAuthIdentity(user.ID, "google", googleID)
-		if err != nil {
-			return nil, err
-		}
-		token, err := utils.GenerateToken(user.ID)
+	if oauthUser.Email != "" {
+		user, err = s.Repo.GetUserByEmail(oauthUser.Email)
 		if err != nil {
 			return nil, err
 		}
 
-		return gin.H{"token": token}, nil
+		if user != nil {
+			_ = s.Repo.AddAuthIdentity(user.ID, oauthUser.Provider, oauthUser.ProviderID)
+
+			token, _ := utils.GenerateToken(user.ID)
+			return gin.H{"token": token}, nil
+		}
 	}
 
-	newUser, err := s.Repo.SaveUser(name, nil, email, picture)
+	newUser, err := s.Repo.SaveUser(
+		oauthUser.Name,
+		nil,
+		oauthUser.Email,
+		oauthUser.Picture,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.Repo.AddAuthIdentity(newUser.ID, "google", googleID)
-	if err != nil {
-		return nil, err
-	}
+	_ = s.Repo.AddAuthIdentity(newUser.ID, oauthUser.Provider, oauthUser.ProviderID)
 
-	newToken, err := utils.GenerateToken(newUser.ID)
-	if err != nil {
-		return nil, err
-	}
-	return gin.H{"token": newToken}, nil
+	tokenStr, _ := utils.GenerateToken(newUser.ID)
+	return gin.H{"token": tokenStr}, nil
 }
