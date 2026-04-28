@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"os"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -54,7 +56,7 @@ func GetOAuthConfig(provider OAuthProvider) *oauth2.Config {
 		return &oauth2.Config{
 			ClientID:     googleClientId,
 			ClientSecret: googleClientSecret,
-			RedirectURL:  "http://localhost:8080/auth/google/callback",
+			RedirectURL:  os.Getenv("APP_URL") + "/auth/google/callback",
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -66,7 +68,7 @@ func GetOAuthConfig(provider OAuthProvider) *oauth2.Config {
 		return &oauth2.Config{
 			ClientID:     githubClientId,
 			ClientSecret: githubClientSecret,
-			RedirectURL:  "http://localhost:8080/auth/github/callback",
+			RedirectURL:  os.Getenv("APP_URL") + "/auth/github/callback",
 			Scopes:       []string{"user:email"},
 			Endpoint: oauth2.Endpoint{
 				AuthURL:  "https://github.com/login/oauth/authorize",
