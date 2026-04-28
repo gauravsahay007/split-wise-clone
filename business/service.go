@@ -203,7 +203,7 @@ func fetchGithubEmail(client *http.Client) (string, error) {
 		Verified bool   `json:"verified"`
 	}
 
-	json.NewDecoder(resp.Body).Decode(&emails)
+	_ = json.NewDecoder(resp.Body).Decode(&emails)
 
 	for _, e := range emails {
 		if e.Primary && e.Verified {
@@ -295,7 +295,7 @@ func (s *Service) OAuthCallback(code string, provider auth.OAuthProvider) (map[s
 		}
 
 		if user != nil {
-			s.Repo.AddAuthIdentity(user.ID, oauthUser.Provider, oauthUser.ProviderID)
+			_ = s.Repo.AddAuthIdentity(user.ID, oauthUser.Provider, oauthUser.ProviderID)
 
 			token, _ := utils.GenerateToken(user.ID)
 			return gin.H{"token": token}, nil
@@ -312,7 +312,7 @@ func (s *Service) OAuthCallback(code string, provider auth.OAuthProvider) (map[s
 		return nil, err
 	}
 
-	s.Repo.AddAuthIdentity(newUser.ID, oauthUser.Provider, oauthUser.ProviderID)
+	_ = s.Repo.AddAuthIdentity(newUser.ID, oauthUser.Provider, oauthUser.ProviderID)
 
 	tokenStr, _ := utils.GenerateToken(newUser.ID)
 	return gin.H{"token": tokenStr}, nil
