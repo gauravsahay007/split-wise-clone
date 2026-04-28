@@ -22,6 +22,7 @@ func main() {
 	}
 
 	auth.LoadGoogleAuthEnv(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"))
+	auth.LoadGithubAuthEnv(os.Getenv("GITHUB_CLIENT_ID"), os.Getenv("GITHUB_CLIENT_SECRET"))
 
 	db := infra.InitDB()
 
@@ -34,8 +35,8 @@ func main() {
 	//Initialise gin router
 	r := gin.Default()
 
-	r.GET("/auth/google", h.GoogleLoginHandler)
-	r.GET("/auth/google/callback", h.GenerateTokenFromGoogle)
+	r.GET("/auth/:provider", h.OAuthHandler)
+	r.GET("/auth/:provider/callback", h.GenerateTokenFromGoogle)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.POST("/auth/signup", h.UserHandler)
 	r.POST("/auth/login", h.LoginHandler)
