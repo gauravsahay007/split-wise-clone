@@ -1,0 +1,39 @@
+name: Deploy Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag (e.g. latest or v1.0.0)"
+        required: true
+        default: "latest"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VM via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            IMAGE=${{ secrets.DOCKER_USERNAME }}/expense-splitter-go:${{ github.event.inputs.tag }}
+
+            echo "Pulling image: $IMAGE"
+            docker pull $IMAGE
+
+            echo "Stopping old container..."
+            docker stop expense-app || true
+            docker rm expense-app || true
+
+            echo "Starting new container..."
+            docker run -d -p 8080:8080 \
+              --env-file .env \
+              --name expense-app \
+              --network app-network \
+              $IMAGE
+
+            echo "Deployment complete"
