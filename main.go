@@ -34,8 +34,8 @@ func main() {
 	r.GET("/auth/:provider", h.OAuthHandler)
 	r.GET("/auth/:provider/callback", h.GenerateTokenFromGoogle)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	r.POST("/auth/signup", h.UserHandler)
-	r.POST("/auth/login", h.LoginHandler)
+	r.POST("/auth/local/signup", h.UserHandler)
+	r.POST("/auth/local/login", h.LoginHandler)
 
 	authorized := r.Group("/api")
 	authorized.Use(middleware.AuthMiddleware())
