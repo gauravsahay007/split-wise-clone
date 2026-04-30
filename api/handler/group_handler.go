@@ -91,3 +91,47 @@ func (h *Handler) AddMemberHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
 }
+
+func (h *Handler) GetUserGroupsHandler(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User context missing"})
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error: Invalid user ID format"})
+		return
+	}
+
+	groups, err := h.Service.FetchUserGroups(userID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+	}
+	c.JSON(http.StatusOK, groups)
+}
+
+func (h *Handler) GetGroupMembers(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User context missing"})
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error: Invalid user ID format"})
+		return
+	}
+
+	gid, err := strconv.Atoi(c.Query("groupId"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid groupId"})
+		return
+	}
+
+	res, err := h.Service.GetGroupMembers(userID, gid)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+	}
+	c.JSON(http.StatusOK, res)
+}

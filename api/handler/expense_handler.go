@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gauravsahay007/split-wise-clone/models"
 	"github.com/gin-gonic/gin"
@@ -46,4 +47,28 @@ func (h *Handler) ExpenseHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Expense added"})
+}
+
+func (h *Handler) GetGroupExpenses(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context missing"})
+		return
+	}
+	userID := val.(int)
+
+	groupIDStr := c.Param("id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group id"})
+		return
+	}
+
+	expenses, err := h.Service.GetGroupExpenses(userID, groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, expenses)
 }

@@ -213,3 +213,266 @@ func (r *Repo) GetTotalOwedByUser(userID int) (float64, error) {
 	err := r.DB.QueryRow(query, userID).Scan(&total)
 	return total, err
 }
+
+func (r *Repo) GetUserGroups(userID int) ([]models.Group, error) {
+	query := `
+	SELECT 
+    g.id AS group_id,
+    g.name,
+    g.created_at,
+    COUNT(gm2.user_id) AS total_members
+	FROM group_members gm1
+	JOIN groups g ON gm1.group_id = g.id
+	JOIN group_members gm2 ON gm1.group_id = gm2.group_id
+	WHERE gm1.user_id = $1
+	GROUP BY g.id, g.name, g.created_at;
+	`
+	var res []models.Group
+	rows, err := r.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		rows.Close()
+	}()
+
+	for rows.Next() {
+		var group models.Group
+		if err := rows.Scan(&group.ID, &group.Name, &group.CreatedAt, &group.Count); err != nil {
+			return nil, err
+		}
+		res = append(res, group)
+	}
+	return res, nil
+}
+
+func (r *Repo) GetUserIDByEmail(email string) (int, error) {
+	query := "SELECT id FROM users where email=$1;"
+	var res int
+	err := r.DB.QueryRow(query, email).Scan(&res)
+	if err != nil {
+		return -1, err
+	}
+	return res, nil
+}
+
+func (r *Repo) AddFriend(userId int, friendIds []string) error {
+	query := `
+	INSERT INTO friends (user_id, friend_user_id)
+	SELECT LEAST($1, u.id), GREATEST($1, u.id)
+	FROM users u WHERE u.email = ANY($2::text[])
+	AND u.id <> $1
+	ON CONFLICT (user_id, friend_user_id) DO NOTHING;
+	`
+
+	_, err := r.DB.Exec(query, userId, pq.Array(friendIds))
+	return err
+}
+
+func (r *Repo) GetFriendsList(userId int) ([]models.User, error) {
+	query := `
+		SELECT u.name, u.email, u.profile_pic FROM (select 
+		CASE 
+			WHEN user_id = $1 THEN friend_user_id
+			ELSE user_id
+		END
+		FROM friends WHERE user_id=$1 OR friend_user_id=9) AS f JOIN users u ON f.user_id = u.id;
+	`
+
+	rows, err := r.DB.Query(query, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []models.User
+
+	defer func() {
+		rows.Close()
+	}()
+
+	for rows.Next() {
+		var friend models.User
+		err := rows.Scan(&friend.Name, &friend.Email, &friend.ProfilePic)
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, friend)
+	}
+
+	return res, nil
+}
+
+func (r *Repo) SearchFriendsInAGroup(userId int, searchString string, groupId int) ([]models.User, error) {
+	query := `
+		SELECT u.id, u.name, u.email, u.profile_pic
+		FROM friends f
+		JOIN users u 
+		  ON u.id = CASE 
+					 WHEN f.user_id = $1 THEN f.friend_user_id
+					 ELSE f.user_id
+				   END
+		WHERE $1 IN (f.user_id, f.friend_user_id)
+		  AND (
+			u.name ILIKE '%' || $2 || '%'
+			OR u.email ILIKE '%' || $2 || '%'
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 
+			FROM group_members gm
+			WHERE gm.group_id = $3
+			  AND gm.user_id = u.id
+		  );
+	`
+
+	rows, err := r.DB.Query(query, userId, searchString, groupId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []models.User
+
+	for rows.Next() {
+		var friend models.User
+		if err := rows.Scan(
+			&friend.ID,
+			&friend.Name,
+			&friend.Email,
+			&friend.ProfilePic,
+		); err != nil {
+			return nil, err
+		}
+		res = append(res, friend)
+	}
+
+	return res, nil
+}
+
+func (r *Repo) GetGroupMembers(userId, groupId int) ([]models.User, error) {
+	query := `
+		SELECT u.id, u.name, u.email, u.profile_pic
+		FROM group_members gm
+		JOIN users u ON u.id = gm.user_id
+		JOIN group_members gm_check 
+		  ON gm_check.group_id = gm.group_id 
+		 AND gm_check.user_id = $1
+		WHERE gm.group_id = $2;
+	`
+
+	rows, err := r.DB.Query(query, userId, groupId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []models.User
+
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(
+			&user.ID,
+			&user.Name,
+			&user.Email,
+			&user.ProfilePic,
+		); err != nil {
+			return nil, err
+		}
+		res = append(res, user)
+	}
+
+	return res, nil
+}
+
+func (r *Repo) IsUserInGroup(userID, groupID int) (bool, error) {
+	var exists bool
+	query := `
+		SELECT EXISTS(
+			SELECT 1 FROM group_members 
+			WHERE user_id = $1 AND group_id = $2
+		)
+	`
+	err := r.DB.QueryRow(query, userID, groupID).Scan(&exists)
+	return exists, err
+}
+
+func (r *Repo) GetGroupExpenses(groupID int) ([]models.Expense, error) {
+	query := `
+	SELECT 
+		e.id,
+		e.paid_by,
+		e.amount,
+		e.group_id,
+		e.description,
+		e.category,
+		e.receipt_image,
+		e.split_type,
+		e.created_at,
+		p.user_id,
+		p.share_amount
+	FROM expenses e
+	LEFT JOIN participants p ON e.id = p.expense_id
+	WHERE e.group_id = $1
+	ORDER BY e.created_at DESC;
+	`
+
+	rows, err := r.DB.Query(query, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	expMap := make(map[int]*models.Expense)
+
+	for rows.Next() {
+		var (
+			exp         models.Expense
+			userID      *int
+			shareAmount *float64
+		)
+
+		err := rows.Scan(
+			&exp.ID,
+			&exp.PaidBy,
+			&exp.Amount,
+			&exp.GroupID,
+			&exp.Description,
+			&exp.Category,
+			&exp.ReceiptImage,
+			&exp.SplitType,
+			&exp.CreatedAt,
+			&userID,
+			&shareAmount,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := expMap[exp.ID]; !ok {
+			exp.UserIDs = []int{}
+			exp.Shares = []models.ExpenseShare{}
+			expMap[exp.ID] = &exp
+		}
+
+		if userID != nil {
+			expMap[exp.ID].UserIDs = append(expMap[exp.ID].UserIDs, *userID)
+
+			if shareAmount != nil {
+				expMap[exp.ID].Shares = append(
+					expMap[exp.ID].Shares,
+					models.ExpenseShare{
+						UserID: *userID,
+						Amount: *shareAmount,
+					},
+				)
+			}
+		}
+	}
+
+	result := []models.Expense{}
+	for _, v := range expMap {
+		result = append(result, *v)
+	}
+
+	return result, nil
+}

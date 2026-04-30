@@ -34,7 +34,7 @@ func main() {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5174", os.Getenv("FRONTEND_URL")},
+		AllowOrigins:     []string{"http://localhost:5173", os.Getenv("FRONTEND_URL")},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -51,12 +51,18 @@ func main() {
 	authorized := r.Group("/api")
 	authorized.Use(middleware.AuthMiddleware())
 	{
-		authorized.POST("/groups", h.CreateGroupHandler)
+		authorized.POST("/create-group", h.CreateGroupHandler)
 		authorized.POST("/groups/:id/members", h.AddMemberHandler)
-		authorized.POST("/expenses", h.ExpenseHandler)
+		authorized.POST("/add-expenses", h.ExpenseHandler)
+		authorized.POST("/groups/:id/expenses", h.GetGroupExpenses)
 		authorized.GET("/groups/:id/balances", h.BalancesHandler)
 		authorized.GET("/user-summary", h.UserSummaryHandler)
 		authorized.GET("/user-details", h.UserDetailsHandler)
+		authorized.GET("/groups", h.GetUserGroupsHandler)
+		authorized.POST("/add-friends", h.HandleAddFriend)
+		authorized.GET("/get-friends", h.GetFriendsList)
+		authorized.GET("/search-friends", h.SearchFriendsInAGroup)
+		authorized.GET("/group/members", h.GetGroupMembers)
 	}
 
 	port := os.Getenv("PORT")

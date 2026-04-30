@@ -77,6 +77,16 @@ func InitDB() *sql.DB {
 
 			UNIQUE(provider, provider_id)
 		);
+		CREATE TABLE IF NOT EXISTS friends (
+			id SERIAL PRIMARY KEY,
+			user_id INT REFERENCES users(id),
+			friend_user_id INT REFERENCES users(id),
+
+			CHECK (user_id <> friend_user_id),
+			CHECK (user_id < friend_user_id),
+
+			UNIQUE (user_id, friend_user_id)
+		);
 	`
 
 	_, err = db.Exec(schema)

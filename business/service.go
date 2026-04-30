@@ -44,6 +44,14 @@ func (s *Service) CreateGroup(name string, creatorID int) (models.Group, error) 
 	return s.Repo.SaveGroup(name, creatorID)
 }
 
+func (s *Service) FetchUserGroups(userId int) ([]models.Group, error) {
+	groups, err := s.Repo.GetUserGroups(userId)
+	if err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
 func (s *Service) CreateExpense(exp models.Expense) error {
 	if exp.Description == "" {
 		exp.Description = "Uncategorized Expense"
@@ -324,4 +332,53 @@ func (s *Service) OAuthCallback(code string, provider auth.OAuthProvider) (map[s
 
 	tokenStr, _ := utils.GenerateToken(newUser.ID)
 	return gin.H{"token": tokenStr}, nil
+}
+
+func (s *Service) FetchUserIDByEmail(email string) (int, error) {
+	userId, err := s.Repo.GetUserIDByEmail(email)
+	if err != nil {
+		return -1, err
+	}
+	return userId, err
+}
+
+func (s *Service) AddFriend(userId int, friendId []string) error {
+	err := s.Repo.AddFriend(userId, friendId)
+	return err
+}
+
+func (s *Service) GetFriendsList(userId int) ([]models.User, error) {
+	res, err := s.Repo.GetFriendsList(userId)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *Service) SearchFriendsInAGroup(userId int, searchString string, groupId int) ([]models.User, error) {
+	res, err := s.Repo.SearchFriendsInAGroup(userId, searchString, groupId)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *Service) GetGroupMembers(userId int, groupId int) ([]models.User, error) {
+	res, err := s.Repo.GetGroupMembers(userId, groupId)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (s *Service) GetGroupExpenses(userID, groupID int) ([]models.Expense, error) {
+	isMember, err := s.Repo.IsUserInGroup(userID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, fmt.Errorf("user not part of group")
+	}
+
+	return s.Repo.GetGroupExpenses(groupID)
 }

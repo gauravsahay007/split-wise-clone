@@ -55,18 +55,25 @@ func (h *Handler) UserHandler(c *gin.Context) {
 // @Router /login [post]
 func (h *Handler) LoginHandler(c *gin.Context) {
 	var req struct {
-		ID       int    `json:"id" binding:"required"`
+		Email    string `json:"email" binding:"required"`
 		Password string `json:"password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{
-			"error": "ID and Passwor required",
+			"error": "Email ID and Passwor required",
 		})
 		return
 	}
 
-	token, err := h.Service.Authenticate(req.ID, req.Password)
+	userId, err := h.Service.FetchUserIDByEmail(req.Email)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := h.Service.Authenticate(userId, req.Password)
 	if err != nil {
 		c.JSON(401, gin.H{
 			"error": "Unauthorized: " + err.Error(),
@@ -123,9 +130,19 @@ func (h *Handler) UserDetailsHandler(c *gin.Context) {
 
 	userDetails, err := h.Service.FetchUserDetails(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user Details"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, userDetails)
+}
+
+func (h *Handler) GetUserEmailByID(c *gin.Context) {
+	email := c.Query("email")
+	userId, err := h.Service.FetchUserIDByEmail(email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"userID": userId})
 }
