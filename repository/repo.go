@@ -25,6 +25,17 @@ func (r *Repo) SaveUser(name string, password *string, email string, profilePic 
 
 func (r *Repo) GetUserByID(id int) (models.User, error) {
 	var u models.User
+	err := r.DB.QueryRow("SELECT id, name, email, profile_pic FROM users WHERE id = $1", id).Scan(
+		&u.ID,
+		&u.Name,
+		&u.Email,
+		&u.Password,
+	)
+	return u, err
+}
+
+func (r *Repo) GetUserWithHashedPassword(id int) (models.User, error) {
+	var u models.User
 	err := r.DB.QueryRow("SELECT id, name, password FROM users WHERE id = $1", id).Scan(
 		&u.ID,
 		&u.Name,
