@@ -32,6 +32,14 @@ func (s *Service) CreateUser(name string, password string, email string, profile
 	return s.Repo.SaveUser(name, &hashedStr, email, profilePic) //convert byte slice to string for DB storage
 }
 
+func (s *Service) FetchUserDetails(userId int) (*models.User, error) {
+	userDetail, err := s.Repo.GetUserByID(userId)
+	if err != nil {
+		return nil, err
+	}
+	return &userDetail, nil
+}
+
 func (s *Service) CreateGroup(name string, creatorID int) (models.Group, error) {
 	return s.Repo.SaveGroup(name, creatorID)
 }
@@ -133,7 +141,7 @@ func (s *Service) AddMemberToGroup(groupID int, userID int) error {
 }
 
 func (s *Service) Authenticate(id int, password string) (string, error) {
-	user, err := s.Repo.GetUserByID(id)
+	user, err := s.Repo.GetUserWithHashedPassword(id)
 	if err != nil {
 		return "", errors.New("user not found")
 	}

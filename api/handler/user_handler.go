@@ -108,3 +108,24 @@ func (h *Handler) UserSummaryHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, summary)
 }
+
+func (h *Handler) UserDetailsHandler(c *gin.Context) {
+	val, exists := c.Get("current_user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User context missing"})
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error: Invalid user ID format"})
+		return
+	}
+
+	userDetails, err := h.Service.FetchUserDetails(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user Details"})
+		return
+	}
+
+	c.JSON(http.StatusOK, userDetails)
+}
