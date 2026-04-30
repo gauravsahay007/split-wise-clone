@@ -45,7 +45,7 @@ func main() {
 		authorized.POST("/expenses", h.ExpenseHandler)
 		authorized.GET("/groups/:id/balances", h.BalancesHandler)
 		authorized.GET("/user/summary", h.UserSummaryHandler)
-		authorized.GET("/user-detail", h.UserDetailsHandler)
+		authorized.GET("/user-details", h.UserDetailsHandler)
 	}
 
 	port := os.Getenv("PORT")
