@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	api "github.com/gauravsahay007/split-wise-clone/api/handler"
 	"github.com/gauravsahay007/split-wise-clone/auth"
@@ -11,6 +12,7 @@ import (
 	"github.com/gauravsahay007/split-wise-clone/infra"
 	"github.com/gauravsahay007/split-wise-clone/middleware"
 	"github.com/gauravsahay007/split-wise-clone/repository"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -30,6 +32,15 @@ func main() {
 
 	//Initialise gin router
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5174", os.Getenv("FRONTEND_URL")},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	r.GET("/auth/:provider", h.OAuthHandler)
 	r.GET("/auth/:provider/callback", h.GenerateTokenFromGoogle)
