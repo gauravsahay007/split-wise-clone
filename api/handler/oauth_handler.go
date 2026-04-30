@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gauravsahay007/split-wise-clone/auth"
 	"github.com/gin-gonic/gin"
@@ -38,5 +39,17 @@ func (h *Handler) GenerateTokenFromGoogle(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tokenObj)
+	token, ok := tokenObj["token"].(string)
+	if !ok || token == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid token"})
+		return
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5174"
+	}
+
+	c.Redirect(http.StatusTemporaryRedirect,
+		frontendURL+"/auth/success?token="+token)
 }
